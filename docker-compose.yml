@@ -1,0 +1,152 @@
+services:
+  api-gateway:
+    build: ./services/api-gateway
+    ports:
+      - "8080:80"
+    depends_on:
+      - rails-api
+      - go-chat
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  rails-api:
+    build: ./services/rails-api
+    expose:
+      - "3000"
+    depends_on:
+      - db
+      - redis
+    environment: &db_env
+      DB_HOST: db
+      DB_USERNAME: root
+      DB_PASSWORD: password
+      DB_NAME: chat_system
+      RAILS_ENV: development
+      REDIS_URL: redis://redis:6379/0
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    volumes:
+      - ./services/rails-api:/rails
+    command: >
+      bash -c "rm -f /rails/tmp/pids/server.pid &&
+      until (echo > /dev/tcp/db/3306) >/dev/null 2>&1; do echo 'Waiting for db...'; sleep 1; done;
+      bundle exec rails db:create db:migrate &&
+      bundle exec rails s -b 0.0.0.0"
+
+  db:
+    image: mysql:8
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  go-chat:
+    build: ./services/go-chat
+    expose:
+      - "8080"
+    depends_on:
+      - rails-api # Cheesy move but I want to ensure the migrations are run before go-chat
+      - redis
+      - db
+      - rabbitmq
+      - elasticsearch
+    environment:
+      <<: *db_env
+      LISTEN_ADDR: 0.0.0.0
+      LISTEN_PORT: 8080
+      LOG_DIR: /app/logs
+      REDIS_URL: redis://redis:6379/0
+      AMQP_URL: amqp://guest:guest@rabbitmq:5672/
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    volumes:
+      - ./services/go-chat/logs:/app/logs
+    command: /app/wait-for.sh rabbitmq 5672 /app/app
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/metrics"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  go-worker:
+    build: ./services/go-worker
+    depends_on:
+      - db
+      - redis
+      - rabbitmq
+      - rails-api
+      - elasticsearch
+    environment:
+      <<: *db_env
+      LOG_DIR: /app/logs
+      REDIS_URL: redis://redis:6379/0
+      AMQP_URL: amqp://guest:guest@rabbitmq:5672/
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    volumes:
+      - ./services/go-worker/logs:/app/logs
+    command: /app/wait-for.sh rabbitmq 5672 /app/app
+    restart: unless-stopped
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  mysql_data:
+  redis_data:
+  elasticsearch_data:
+
+# We can also use an env_file to manage environment variables but for simplicity, 
+# I have defined them directly in the docker-compose.yml file.
+# env_file:
+#   - .env

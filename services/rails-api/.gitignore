@@ -1,0 +1,79 @@
+# See https://help.github.com/articles/ignoring-files for more about ignoring files.
+
+# Ignore bundler config.
+/.bundle
+/vendor/bundle
+
+# Ignore all environment files.
+/.env*
+.env
+.env.local
+.env.*.local
+
+# Ignore all logfiles and tempfiles.
+/log/*
+/tmp/*
+!/log/.keep
+!/tmp/.keep
+*.log
+
+# Ignore pidfiles, but keep the directory.
+/tmp/pids/*
+!/tmp/pids/
+!/tmp/pids/.keep
+*.pid
+
+# Ignore storage (uploaded files in development and any SQLite databases).
+/storage/*
+!/storage/.keep
+/tmp/storage/*
+!/tmp/storage/
+!/tmp/storage/.keep
+/public/system
+/public/uploads
+
+# Ignore key files for decrypting credentials and more.
+/config/*.key
+/config/master.key
+/config/credentials/*.key
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# Rails specific
+*.rbc
+*.sassc
+.sass-cache
+capybara-*.html
+.rspec
+.byebug_history
+
+# Public assets
+/public/assets
+/public/packs
+/public/packs-test
+
+# Node modules (if using Webpacker)
+/node_modules
+/yarn-error.log
+yarn-debug.log*
+.yarn-integrity
+
+# Test coverage
+/coverage/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*~
