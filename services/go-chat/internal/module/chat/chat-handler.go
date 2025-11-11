@@ -125,7 +125,7 @@ func (s *Service) SearchMessagesHandler(ctx *fiber.Ctx) error {
 	chatNumberStr := ctx.Params("number")
 	query := ctx.Query("q")
 	pageStr := ctx.Query("page", "1")
-	pageSizeStr := ctx.Query("size", "20")
+	perPageStr := ctx.Query("per_page", "20")
 
 	if appToken == "" {
 		logger.Error("missing app token in URL")
@@ -161,17 +161,17 @@ func (s *Service) SearchMessagesHandler(ctx *fiber.Ctx) error {
 		page = 1
 	}
 
-	pageSize, err := strconv.Atoi(pageSizeStr)
-	if err != nil || pageSize < 1 {
-		pageSize = 20
+	perPage, err := strconv.Atoi(perPageStr)
+	if err != nil || perPage < 1 {
+		perPage = 20
 	}
-	if pageSize > 100 {
-		pageSize = 100
+	if perPage > 100 {
+		perPage = 100
 	}
 
-	logger.Info("searching messages: app=%s, chat=%d, query=%s, page=%d, page_size=%d", appToken, chatNumber, query, page, pageSize)
+	logger.Info("searching messages: app=%s, chat=%d, query=%s, page=%d, per_page=%d", appToken, chatNumber, query, page, perPage)
 
-	messages, total, err := s.SearchMessages(appToken, chatNumber, query, page, pageSize)
+	messages, total, err := s.SearchMessages(appToken, chatNumber, query, page, perPage)
 	if err != nil {
 		logger.Error("failed to search messages: %v", err)
 		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -179,7 +179,7 @@ func (s *Service) SearchMessagesHandler(ctx *fiber.Ctx) error {
 		})
 	}
 
-	totalPages := (total + pageSize - 1) / pageSize
+	totalPages := (total + perPage - 1) / perPage
 
 	logger.Info("found %d messages matching query (total: %d)", len(messages), total)
 
@@ -187,7 +187,7 @@ func (s *Service) SearchMessagesHandler(ctx *fiber.Ctx) error {
 		"data": messages,
 		"meta": fiber.Map{
 			"page":        page,
-			"per_page":    pageSize,
+			"per_page":    perPage,
 			"total":       total,
 			"total_pages": totalPages,
 		},
